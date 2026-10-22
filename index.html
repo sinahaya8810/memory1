@@ -6,12 +6,18 @@
 <title>Ria's Catch!</title>
 <style>
 html,body{margin:0;height:100%;background:#1b1035;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
-canvas{width:min(calc(100vw - 16px),calc((100vh - 16px) * 2 / 3));height:auto;aspect-ratio:2/3;image-rendering:pixelated;touch-action:none;
+#wrap{position:relative;width:min(calc(100vw - 16px),calc((100vh - 16px) * 2 / 3));aspect-ratio:2/3;
 border:4px solid #fff4c2;box-shadow:0 0 0 4px #ff5fa2,0 0 0 8px #1b1035,0 0 24px 8px rgba(255,95,162,.5);background:#2a1a5e}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated;touch-action:none}
+#nm{position:absolute;left:27.8%;top:60.4%;width:58.3%;height:5.9%;box-sizing:border-box;padding:0;margin:0;border:2px solid #fff4c2;border-radius:0;
+background:#1b1035;color:#ffe36e;font-weight:bold;font-family:"Courier New",monospace;text-align:center;outline:none;display:none}
+#nm::placeholder{color:#8a7fb5}
+#nm:focus{border-color:#ff6ec7}
 </style>
 </head>
 <body>
-<canvas id="c" width="360" height="540"></canvas>
+<div id="wrap"><canvas id="c" width="360" height="540"></canvas>
+<input id="nm" maxlength="8" placeholder="Name" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>
 <script>
 const cv=document.getElementById("c"),ctx=cv.getContext("2d");
 const W=360,H=540,GY=488;
@@ -20,6 +26,12 @@ const EF="'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
 const PF="'Courier New',monospace";
 const MAXL=5;
 let hi=0;try{hi=+localStorage.getItem("ria_hi")||0}catch(e){}
+const inp=document.getElementById("nm");let pname="Name";
+try{const sv=localStorage.getItem("ria_name");if(sv&&sv!=="Ria")pname=sv}catch(e){}
+if(pname!=="Name")inp.value=pname;
+inp.addEventListener("input",()=>{pname=inp.value.trim().slice(0,8)||"Name"});
+function fit(){inp.style.fontSize=(cv.getBoundingClientRect().width/360*16)+"px"}
+fit();addEventListener("resize",fit);
 let state="title",items=[],pops=[],ria={x:W/2},lives=3,score=0,t=0,spawn=0,inv=0,hurt=0,shake=0,eaten=0,newHi=false,lock=0,flash=0,keys={},dragging=false,last=0;
 const stars=Array.from({length:40},()=>({x:Math.random()*W,y:Math.random()*GY,p:Math.random()*6}));
 
@@ -27,7 +39,7 @@ const stars=Array.from({length:40},()=>({x:Math.random()*W,y:Math.random()*GY,p:
 const SP=["...hhhhhh...","..hhhhhhhh..",".hhsssssshh.",".hhsesseshh.",".hhsrssrshh.","...hssssssh.","..dddddddd..",".dddwddwddd.","..dddddddd..","...bb..bb..."];
 const COL={h:"#ff6ec7",s:"#ffd9b3",e:"#2a1a2e",r:"#ff7a7a",d:"#4dc3ff",w:"#ffffff",b:"#7a3b1e"};
 
-function start(){items=[];pops=[];ria.x=W/2;lives=3;score=0;t=0;spawn=.6;inv=0;hurt=0;shake=0;eaten=0;newHi=false;flash=0;state="play"}
+function start(){items=[];pops=[];ria.x=W/2;lives=3;score=0;t=0;spawn=.6;inv=0;hurt=0;shake=0;eaten=0;newHi=false;flash=0;state="play";inp.blur();try{localStorage.setItem("ria_name",pname)}catch(e){}}
 function over(){state="over";lock=.7;score=Math.floor(score);if(score>hi){hi=score;newHi=true;try{localStorage.setItem("ria_hi",hi)}catch(e){}}}
 function pop(x,y,s,c){pops.push({x,y,s,c,l:.9})}
 
@@ -120,6 +132,7 @@ function drawHUD(){
 var w;
 
 function draw(time){
+  inp.style.display=state==="title"?"block":"none";
   ctx.save();
   if(shake>0)ctx.translate((Math.random()-.5)*8,(Math.random()-.5)*8);
   const g=ctx.createLinearGradient(0,0,0,GY);g.addColorStop(0,"#2a1a5e");g.addColorStop(1,"#7a3a9a");
@@ -129,13 +142,13 @@ function draw(time){
   ctx.fillStyle="#1f7a45";ctx.fillRect(0,GY,W,3);
   if(state!=="title"||true){for(const it of items)drawItem(it,time)}
   drawRia(time);
-  txt("Ria",ria.x,GY+30,16,"#fff","center");
+  txt(pname,ria.x,GY+30,16,"#fff","center");
   for(const p of pops){ctx.globalAlpha=Math.min(1,p.l*2);txt(p.s,p.x,p.y,16,p.c,"center");ctx.globalAlpha=1}
   if(flash>0){ctx.fillStyle="rgba(255,40,40,"+flash*1.4+")";ctx.fillRect(0,0,W,H)}
   drawHUD();
   ctx.restore();
-  if(state==="title")panel(["RIA'S CATCH!","","← → / ドラッグで移動",["🍔🍩🍕🍟","+10点"],["💣","ダメージ!"],["❤️","残機が1回復"],["🌟","6秒間 無敵"],"","TAP / SPACE でスタート"],time);
-  if(state==="over")panel(["GAME OVER","","SCORE "+pad(score,6),"HI    "+pad(hi,6),newHi?"★ NEW RECORD! ★":"食べた数: "+eaten,"","TAP / SPACE でもう一度"],time);
+  if(state==="title")panel(["RIA'S CATCH!","","← → / ドラッグで移動",["🍔🍩🍕🍟","+10点"],["💣","ダメージ!"],["❤️","残機が1回復"],["🌟","6秒間 無敵"],{input:true},"TAP / SPACE でスタート"],time);
+  if(state==="over")panel(["GAME OVER","",pname+" さん","SCORE "+pad(score,6),"HI    "+pad(hi,6),newHi?"★ NEW RECORD! ★":"食べた数: "+eaten,"","TAP / SPACE でもう一度"],time);
 }
 function panel(lines,time){
   ctx.fillStyle="rgba(15,8,40,.75)";ctx.fillRect(0,0,W,H);
@@ -143,8 +156,9 @@ function panel(lines,time){
   lines.forEach((s,i)=>{
     const big=i===0,blink=i===lines.length-1;
     if(blink&&Math.floor(time*2)%2)return;
-    const y=150+i*30;
-    if(Array.isArray(s)){
+    const y=146+i*28;
+    if(s&&s.input){txt("NAME",52,y,15,"#7ff0ff","left")}
+    else if(Array.isArray(s)){
       ctx.font="22px "+EF;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillStyle="#fff";
       ctx.fillText(s[0],85,y+1);
       txt(s[1],140,y,15,"#fff","left");
@@ -161,6 +175,7 @@ function loop(ts){
 requestAnimationFrame(loop);
 
 addEventListener("keydown",e=>{
+  if(e.target===inp){if(e.key==="Enter")inp.blur();return}
   const k=e.key;keys[k]=true;
   if(["ArrowLeft","ArrowRight"," "].includes(k))e.preventDefault();
   if((k===" "||k==="Enter")&&state!=="play"&&lock<=0)start();
