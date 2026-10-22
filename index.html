@@ -13,13 +13,11 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;touch-acti
 background:#1b1035;color:#ffe36e;font-weight:bold;font-family:"Courier New",monospace;text-align:center;outline:none;display:none}
 #nm::placeholder{color:#8a7fb5}
 #nm:focus{border-color:#ff6ec7}
-#snd{position:absolute;right:5%;top:15%;width:12%;height:5.6%;padding:0;margin:0;border:2px solid #fff4c2;border-radius:0;background:#1b1035;color:#fff;display:none;cursor:pointer}
 </style>
 </head>
 <body>
 <div id="wrap"><canvas id="c" width="360" height="540"></canvas>
-<input id="nm" maxlength="8" placeholder="Name" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
-<button id="snd" type="button">🔊</button></div>
+<input id="nm" maxlength="8" placeholder="Name" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>
 <script>
 const cv=document.getElementById("c"),ctx=cv.getContext("2d");
 const W=360,H=540,GY=488;
@@ -28,59 +26,51 @@ const EF="'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
 const PF="'Courier New',monospace";
 const MAXL=5;
 let hi=0;try{hi=+localStorage.getItem("ria_hi")||0}catch(e){}
-const inp=document.getElementById("nm"),snd=document.getElementById("snd");
+const inp=document.getElementById("nm");
 const TS=+new URLSearchParams(location.search).get("test")||0;let pname="Name";
 try{const sv=localStorage.getItem("ria_name");if(sv&&sv!=="Ria")pname=sv}catch(e){}
 if(pname!=="Name")inp.value=pname;
 inp.addEventListener("input",()=>{pname=inp.value.trim().slice(0,8)||"Name"});
-function fit(){const f=(cv.getBoundingClientRect().width/360*16)+"px";inp.style.fontSize=f;snd.style.fontSize=f}
+function fit(){inp.style.fontSize=(cv.getBoundingClientRect().width/360*16)+"px"}
 fit();addEventListener("resize",fit);
-
-// ---- 効果音 (WebAudio) ----
-let AC=null,muted=false;try{muted=localStorage.getItem("ria_mute")==="1"}catch(e){}
-function initAudio(){if(!AC){try{AC=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state==="suspended")AC.resume()}
-function tone(f,d,type,vol,delay,slide){
-  if(!AC||muted)return;
-  const t0=AC.currentTime+(delay||0),o=AC.createOscillator(),g=AC.createGain();
-  o.type=type||"square";o.frequency.setValueAtTime(f,t0);
-  if(slide)o.frequency.exponentialRampToValueAtTime(slide,t0+d);
-  g.gain.setValueAtTime(vol||.07,t0);g.gain.exponentialRampToValueAtTime(.0001,t0+d);
-  o.connect(g);g.connect(AC.destination);o.start(t0);o.stop(t0+d+.02);
+function sm(n){
+  n=n.normalize("NFKC").replace(/\s/g,"").replace(/[ぁ-ゖ]/g,c=>String.fromCharCode(c.charCodeAt(0)+96));
+  let h=2166136261;for(let i=0;i<n.length;i++){h^=n.charCodeAt(i);h=Math.imul(h,16777619)}
+  return {3929872520:1,2216911167:2,3556965706:3}[h>>>0]||0;
 }
-const SFX={
-  food(){tone(660,.07,"square",.05);tone(990,.07,"square",.05,.05)},
-  heart(){[523,659,784].forEach((f,i)=>tone(f,.12,"triangle",.1,i*.07))},
-  star(){[523,659,784,1046].forEach((f,i)=>tone(f,.1,"square",.06,i*.06))},
-  fever(){[392,523,659,784,1046].forEach((f,i)=>tone(f,.12,"square",.06,i*.055))},
-  hurt(){tone(220,.3,"sawtooth",.09,0,60)},
-  safe(){tone(880,.08,"triangle",.06)},
-  ms(){[659,784,988,1318].forEach((f,i)=>tone(f,.15,"square",.06,i*.08))},
-  over(){[440,370,311,247].forEach((f,i)=>tone(f,.25,"square",.07,i*.18))}
-};
-snd.addEventListener("click",()=>{initAudio();muted=!muted;try{localStorage.setItem("ria_mute",muted?"1":"0")}catch(e){}snd.textContent=muted?"🔇":"🔊";snd.blur();if(!muted)SFX.food()});
-let nextMs=2500,msN=0,fx=null,fv=0,state="title",items=[],pops=[],ria={x:W/2},lives=3,score=0,t=0,spawn=0,inv=0,hurt=0,shake=0,eaten=0,newHi=false,lock=0,flash=0,keys={},dragging=false,last=0;
+
+let mode=0,nextMs=2500,msN=0,fx=null,fv=0,state="title",items=[],pops=[],ria={x:W/2},lives=3,score=0,t=0,spawn=0,inv=0,hurt=0,shake=0,eaten=0,newHi=false,lock=0,flash=0,keys={},dragging=false,last=0;
 const stars=Array.from({length:40},()=>({x:Math.random()*W,y:Math.random()*GY,p:Math.random()*6}));
 
 // Ria pixel sprite (12x10)
 const SP=["...hhhhhh...","..hhhhhhhh..",".hhsssssshh.",".hhsesseshh.",".hhsrssrshh.","...hssssssh.","..dddddddd..",".dddwddwddd.","..dddddddd..","...bb..bb..."];
 const COL={h:"#ff6ec7",s:"#ffd9b3",e:"#2a1a2e",r:"#ff7a7a",d:"#4dc3ff",w:"#ffffff",b:"#7a3b1e"};
 
-function start(){items=[];pops=[];ria.x=W/2;lives=3;score=TS;t=0;spawn=.6;inv=0;fv=0;nextMs=2500;msN=0;fx=null;hurt=0;shake=0;eaten=0;newHi=false;flash=0;state="play";initAudio();inp.blur();try{localStorage.setItem("ria_name",pname)}catch(e){}}
-function over(){state="over";lock=.7;fx=null;SFX.over();score=Math.floor(score);if(!TS&&score>hi){hi=score;newHi=true;try{localStorage.setItem("ria_hi",hi)}catch(e){}}}
+function start(){items=[];pops=[];ria.x=W/2;lives=3;score=TS;t=0;spawn=.6;inv=0;fv=0;nextMs=2500;msN=0;fx=null;hurt=0;shake=0;eaten=0;newHi=false;flash=0;mode=sm(pname);state="play";inp.blur();try{localStorage.setItem("ria_name",pname)}catch(e){}}
+function over(){state="over";lock=.7;fx=null;score=Math.floor(score);if(!TS&&score>hi){hi=score;newHi=true;try{localStorage.setItem("ria_hi",hi)}catch(e){}}}
 function pop(x,y,s,c){pops.push({x,y,s,c,l:.9})}
 
 function startFx(v){
   const hues=[50,300,190,120,20];
   fx={t:0,dur:1.8,v,hue:hues[msN++%5],sp:Array.from({length:26},()=>({x:Math.random()*W,y:200+Math.random()*(GY-200),v:50+Math.random()*120,z:3+(Math.random()*3|0),h:Math.random()*50}))};
-  SFX.ms();
 }
 function make(){
   const v=score,base=140+Math.min(t*3.5,280);
-  let type="food";
-  if(fv<=0){
+  let em=null,type="food",sz=1,sp=1,jit=.85+Math.random()*.4;
+  if(mode===1){type="oni";sz=1.3;sp=1.6;jit=.7+Math.random()*.8}
+  else if(mode===2){type=fv<=0&&Math.random()<.04?"fever":"love"}
+  else if(mode===3){if(Math.random()<.12){type="big";sz=3;em="👨‍❤️‍👨"}else em="🥔"}
+  else if(v>=50000){type="oni";sz=1.2;sp=1.1;jit=.7+Math.random()*.6}
+  else if(fv<=0){
     const r=Math.random();
-    if(v>=30000)type="virus";
-    else{
+    if(v>=45000)type="virus";
+    else if(v>=30000){
+      const g=v<40000;
+      if(r<.7)type="virus";
+      else if(g&&r<.71)type=lives<MAXL?"heart":"food";
+      else if(g&&r<.72)type="star";
+      else if(g&&r<.728)type="fever";
+    }else{
       const bp=Math.min(.4,.2+t*.0032);
       let pb=0,pp=0,vp=0;
       if(v<5000)pb=bp;else if(v<10000){pb=bp;pp=.1}else{pp=Math.min(.45,bp+.1);if(v>=20000)vp=.1}
@@ -93,11 +83,11 @@ function make(){
       else if(r<a+.05)type="fever";
     }
   }
-  let sz=1,sp=1;
   if(type==="poop"&&v<10000){sz=1.5;sp=.6}
   if(type==="virus"&&v<30000)sp=.5;
-  const E={bomb:"💣",poop:"💩",heart:"❤️",star:"🌟",fever:"🌈",virus:"🦠"};
-  items.push({x:24+Math.random()*(W-48),y:-24*sz,vy:base*sp*(.85+Math.random()*.4),type,sz,e:E[type]||FOODS[Math.random()*FOODS.length|0]});
+  if(type==="virus"&&v>=45000){sp=1;jit=.45+Math.random()*1.35}
+  const E={bomb:"💣",poop:"💩",heart:"❤️",star:"🌟",fever:"🌈",virus:"🦠",oni:"👹",love:"😍"};
+  items.push({x:Math.max(24,sz*30)+Math.random()*(W-2*Math.max(24,sz*30)),y:-24*sz,vy:base*sp*jit,type,sz,e:em||E[type]||FOODS[Math.random()*FOODS.length|0]});
 }
 
 function update(dt){
@@ -109,10 +99,18 @@ function update(dt){
   if(fx){fx.t+=dt;if(fx.t>fx.dur)fx=null}
   t+=dt;score+=dt*(10+t*.12);inv-=dt;fv-=dt;hurt-=dt;shake-=dt;flash-=dt;
   spawn-=dt;
-  if(spawn<=0){make();spawn=Math.max(.3,1-t*.011)*(.7+Math.random()*.6)*(fv>0?.6:1)}
+  if(spawn<=0){
+    make();
+    let iv=Math.max(.3,1-t*.011)*(.7+Math.random()*.6);
+    if(fv>0)iv*=.6;
+    if(mode===1){iv=.03;make()}
+    else if(mode===0&&score>=50000){iv=.05;make()}
+    else if(mode===0&&score>=45000)iv/=1.7;
+    spawn=iv;
+  }
   for(const it of items){
     it.y+=it.vy*dt;
-    if(!it.dead&&it.y>GY-52-(it.sz-1)*19&&it.y<GY+4&&Math.abs(it.x-ria.x)<19*it.sz+13){it.dead=true;hit(it)}
+    if(!it.dead&&state==="play"&&it.y>GY-52-(it.sz-1)*19&&it.y<GY+4&&Math.abs(it.x-ria.x)<19*it.sz+13){it.dead=true;hit(it)}
     if(it.y>H+30)it.dead=true;
   }
   items=items.filter(i=>!i.dead);
@@ -121,16 +119,20 @@ function update(dt){
 }
 function mult(){const v=Math.floor(score);return v>=10000?10:v>=2500?2:1}
 function hit(it){
-  if(it.type==="food"){const m=mult()*(inv>0?2:1),g=10*m;score+=g;eaten++;pop(it.x,GY-60,"+"+g,m>1?"#ffb347":"#ffe36e");SFX.food()}
-  else if(it.type==="heart"){lives=Math.min(MAXL,lives+1);pop(it.x,GY-60,"LIFE +1","#ff7aa8");SFX.heart()}
-  else if(it.type==="star"){inv=6;pop(it.x,GY-60,"MUTEKI! x2","#fff27a");SFX.star()}
-  else if(it.type==="fever"){
-    fv=8;pop(it.x,GY-60,"FEVER!!","#ff7ae9");SFX.fever();
-    for(const o of items)if(o.type==="bomb"||o.type==="poop"||o.type==="virus"){o.type="food";o.sz=1;o.e=FOODS[Math.random()*FOODS.length|0]}
+  const ty=it.type;
+  if(ty==="oni"){lives=0;shake=.4;flash=.3;pop(it.x,GY-60,"-5","#ff4d4d");over()}
+  else if(ty==="big"){score+=5000;eaten++;pop(it.x,GY-60,"+5000","#ffe36e")}
+  else if(ty==="love"){score+=888;eaten++;pop(it.x,GY-60,"+888","#ff9ec7")}
+  else if(ty==="food"){const m=mult()*(inv>0?2:1),g=10*m;score+=g;eaten++;pop(it.x,GY-60,"+"+g,m>1?"#ffb347":"#ffe36e")}
+  else if(ty==="heart"){lives=Math.min(MAXL,lives+1);pop(it.x,GY-60,"LIFE +1","#ff7aa8")}
+  else if(ty==="star"){inv=6;pop(it.x,GY-60,"MUTEKI! x2","#fff27a")}
+  else if(ty==="fever"){
+    fv=8;pop(it.x,GY-60,"FEVER!!","#ff7ae9");
+    for(const o of items)if(o.type==="bomb"||o.type==="poop"||o.type==="virus"||o.type==="oni"){o.type="food";o.sz=1;o.e=FOODS[Math.random()*FOODS.length|0]}
   }else{
-    const dmg={bomb:1,poop:2,virus:3}[it.type];
-    if(inv>0){pop(it.x,GY-60,"SAFE!","#9ff");SFX.safe()}
-    else if(hurt<=0){lives-=dmg;hurt=1.2;shake=.4;flash=.3;pop(it.x,GY-60,"-"+dmg,"#ff4d4d");SFX.hurt();if(lives<=0)over()}
+    const dmg={bomb:1,poop:2,virus:3}[ty];
+    if(inv>0){pop(it.x,GY-60,"SAFE!","#9ff")}
+    else if(hurt<=0){lives-=dmg;hurt=1.2;shake=.4;flash=.3;pop(it.x,GY-60,"-"+dmg,"#ff4d4d");if(lives<=0)over()}
   }
 }
 
@@ -155,19 +157,36 @@ function drawRia(time){
 const HZ={
   bomb:{c:"255,30,30",bg:"#0a0a0a",a:"#ff2d2d",b:"#ff9a3c",m:"!",mc:"#ff3b3b"},
   poop:{c:"255,30,30",bg:"#2b1708",a:"#ff2d2d",b:"#b01515",m:"!!",mc:"#ff3b3b"},
+  oni:{c:"255,30,30",bg:"#1a0505",a:"#ff2d2d",b:"#ff7a7a",m:"!!!!!",mc:"#ff3b3b"},
   virus:{c:"90,255,70",bg:"#08200a",a:"#6dff4d",b:"#2fb52f",m:"!!!",mc:"#7dff5a"}
 };
+const EC={};
+function emo(e,x,y,size){
+  const k=e+"|"+size;let c=EC[k];
+  if(!c){
+    const m=document.createElement("canvas").getContext("2d");m.font=size+"px "+EF;
+    const SW=Math.ceil(m.measureText(e).width+size),SH=Math.ceil(size*2),o=document.createElement("canvas");
+    o.width=SW;o.height=SH;
+    const q=o.getContext("2d");q.font=size+"px "+EF;q.textAlign="center";q.textBaseline="middle";q.fillText(e,SW/2,SH/2);
+    let x0=SW,x1=-1,y0=SH,y1=-1;
+    try{const d=q.getImageData(0,0,SW,SH).data;for(let j=0;j<SH;j++)for(let i=0;i<SW;i++)if(d[(j*SW+i)*4+3]>20){if(i<x0)x0=i;if(i>x1)x1=i;if(j<y0)y0=j;if(j>y1)y1=j}}catch(er){}
+    c={o,SW,SH,dx:x1>=0?SW/2-(x0+x1+1)/2:0,dy:y1>=0?SH/2-(y0+y1+1)/2:0};
+    EC[k]=c;
+  }
+  ctx.drawImage(c.o,Math.round(x-c.SW/2+c.dx),Math.round(y-c.SH/2+c.dy));
+}
 function drawItem(it,time){
   const p=.5+.5*Math.sin(time*14),h=HZ[it.type];
   ctx.textAlign="center";ctx.textBaseline="middle";
   if(h){
+    if(items.length>25){ctx.fillStyle="rgba("+h.c+",.4)";ctx.beginPath();ctx.arc(it.x,it.y,20*it.sz,0,7);ctx.fill();emo(it.e,it.x,it.y+1,26*it.sz);return}
     ctx.save();ctx.translate(it.x,it.y);ctx.scale(it.sz,it.sz);
     const g=ctx.createRadialGradient(0,0,6,0,0,34);
     g.addColorStop(0,"rgba("+h.c+","+(.55+.4*p)+")");g.addColorStop(1,"rgba("+h.c+",0)");
     ctx.fillStyle=g;ctx.fillRect(-36,-36,72,72);
     ctx.fillStyle=h.bg;ctx.beginPath();ctx.arc(0,0,19,0,7);ctx.fill();
     ctx.lineWidth=3;ctx.strokeStyle=p>.5?h.a:h.b;ctx.stroke();
-    ctx.font="26px "+EF;ctx.fillStyle="#fff";ctx.fillText(it.e,0,1);
+    emo(it.e,0,1,26);
     if(p>.5){ctx.font="bold 14px "+PF;ctx.fillStyle=h.mc;ctx.fillText(h.m,22,-20)}
     ctx.restore();
   }else{
@@ -175,12 +194,13 @@ function drawItem(it,time){
       let c0,c1;
       if(it.type==="fever"){const hh=(time*300)%360|0;c0="hsla("+hh+",100%,60%,.8)";c1="hsla("+hh+",100%,60%,0)"}
       else if(it.type==="star"){c0="rgba(255,235,90,.7)";c1="rgba(255,235,90,0)"}
+      else if(it.type==="big"){c0="rgba(255,225,90,.8)";c1="rgba(255,225,90,0)"}
       else{c0="rgba(255,120,170,.7)";c1="rgba(255,120,170,0)"}
-      const g=ctx.createRadialGradient(it.x,it.y,4,it.x,it.y,30);
+      const z=it.sz,g=ctx.createRadialGradient(it.x,it.y,4*z,it.x,it.y,30*z);
       g.addColorStop(0,c0);g.addColorStop(1,c1);
-      ctx.fillStyle=g;ctx.fillRect(it.x-32,it.y-32,64,64);
+      ctx.fillStyle=g;ctx.fillRect(it.x-32*z,it.y-32*z,64*z,64*z);
     }
-    ctx.font="30px "+EF;ctx.fillStyle="#fff";ctx.fillText(it.e,it.x,it.y);
+    emo(it.e,it.x,it.y,30*it.sz);
   }
 }
 
@@ -188,8 +208,8 @@ function drawHUD(time){
   box(8,8,344,68,"#2c1b6b");
   txt("SCORE "+pad(score,6),18,26,16,"#ffe36e");
   txt("HI "+pad(hi,6),342,26,16,"#7ff0ff","right");
-  for(let i=0;i<MAXL;i++){ctx.font="18px "+EF;ctx.textAlign="left";ctx.textBaseline="middle";ctx.fillStyle="#fff";ctx.fillText(i<lives?"❤️":"🖤",16+i*24,47)}
-  const m=mult()*(inv>0?2:1);
+  for(let i=0;i<MAXL;i++)emo(i<lives?"❤️":"🖤",27+i*24,47,18);
+  const m=mode&&mode!==3?1:mult()*(inv>0?2:1);
   if(m>1)txt("x"+m,342,47,16,"#ff9f43","right");
   if(inv>0){
     ctx.fillStyle="#1b1035";ctx.fillRect(160,40,136,14);
@@ -206,7 +226,6 @@ function drawHUD(time){
 
 function draw(time){
   inp.style.display=state==="title"?"block":"none";
-  snd.style.display=state==="play"?"none":"block";snd.textContent=muted?"🔇":"🔊";
   ctx.save();
   if(shake>0)ctx.translate((Math.random()-.5)*8,(Math.random()-.5)*8);
   const g=ctx.createLinearGradient(0,0,0,GY);g.addColorStop(0,"#2a1a5e");g.addColorStop(1,"#7a3a9a");
@@ -243,8 +262,7 @@ function panel(lines,time){
     const y=146+i*28;
     if(s&&s.input){txt("NAME",52,y,15,"#7ff0ff","left")}
     else if(Array.isArray(s)){
-      ctx.font="22px "+EF;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillStyle="#fff";
-      ctx.fillText(s[0],85,y+1);
+      emo(s[0],85,y+1,22);
       txt(s[1],140,y,15,"#fff","left");
     }else{
       txt(s,W/2,y,big?26:15,big?"#ff7ac8":(blink?"#ffe36e":"#fff"),"center");
